@@ -6,7 +6,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['Username'];
     $password = $_POST['Password'];
 
-    $conn = new mysqli('localhost', 'root', '', 'myschool');
+    $conn = new mysqli('localhost', 'root', '', 'HOTELRESERVATION');
     if ($conn->connect_error) {
         die("資料庫連線失敗：" . $conn->connect_error);
     }
