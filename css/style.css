@@ -8347,3 +8347,13 @@ textarea.form-control {
         border: 1px solid transparent;
         background: #fbceb5;
         color: #fff; }
+
+.container {
+  max-width: 1000px;
+  background-color: rgba(255, 255, 255, 0.3); /* 半透明白色 */
+  margin: 0 auto;
+  padding: 0;
+  border-radius: 20px; /* 圓角 */
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08); /* 柔和陰影，提升質感 */
+  backdrop-filter: blur(4px); /* 玻璃感（可選，需支援） */
+}

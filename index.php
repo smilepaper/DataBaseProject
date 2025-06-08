@@ -11,14 +11,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("資料庫連線失敗：" . $conn->connect_error);
     }
 
-    $stmt = $conn->prepare("SELECT * FROM students WHERE username = ? AND password = ?");
+    $stmt = $conn->prepare("SELECT * FROM USER WHERE u_account = ? AND u_password = ?");
     $stmt->bind_param("ss", $username, $password); 
     $stmt->execute();
     $result = $stmt->get_result();
 
     if ($result->num_rows === 1) {
+        $user = $result->fetch_assoc();
         $_SESSION['login_session'] = $username;
-        header("Location: index.php");
+        $_SESSION['user_id'] = $user['u_id'];
+        $_SESSION['role'] = $user['role'];
+
+
+        if ($user['role'] === 'MANAGER') {
+            header("Location: manager.php");
+        } else {
+            header("Location: home.php");
+        }
         exit();
     } else {
         $err = "帳號或密碼錯誤";
@@ -45,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	</head>
 	<body class="img js-fullheight" style="background-image: url(images/bg.jpg);">
 	<section class="ftco-section">
+		<!-- 登入格 -->
 		<div class="container">
 			<div class="row justify-content-center">
 			</div>
@@ -52,12 +62,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				<div class="col-md-6 col-lg-4">
 					<div class="login-wrap p-0">
 		      	<h3 class="mb-4 text-center">Have an account?</h3>
-		      	<form action="#" class="signin-form">
+		      	<form action="index.php" method="post" class="signin-form">
 		      		<div class="form-group">
-		      			<input type="text" class="form-control" placeholder="Username" required>
+		      			<input type="text" name="Username" class="form-control" placeholder="Username" required>
 		      		</div>
 	            <div class="form-group">
-	              <input id="password-field" type="password" class="form-control" placeholder="Password" required>
+	              <input id="password-field" type="password" name="Password" class="form-control" placeholder="Password" required>
 	              <span toggle="#password-field" class="fa fa-fw fa-eye field-icon toggle-password"></span>
 	            </div>
 	            <div class="form-group">
