@@ -61,6 +61,11 @@ $stmt->bind_param("ii", $room_type, $room_price);
 $stmt->execute();
 $room_info = $stmt->get_result()->fetch_assoc();
 
+// 取得所有可用服務
+$services_stmt = $conn->prepare("SELECT * FROM SERVICE ORDER BY s_id");
+$services_stmt->execute();
+$services_result = $services_stmt->get_result();
+
 // 處理表單提交
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $checkin_date = $_POST['checkin_date'];
@@ -68,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $customer_name = $_POST['customer_name'];
     $customer_phone = $_POST['customer_phone'];
     $customer_email = $_POST['customer_email'];
+    $selected_services = isset($_POST['services']) ? $_POST['services'] : [];
     
     // 驗證日期
     $today = new DateTime();
@@ -86,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ... 其他驗證邏輯 ...
 
     if (empty($errors)) {
-        // 檢查房間是否可用 - 修改查詢以確保房間存在且可用
+        // 檢查房間是否可用
         $stmt = $conn->prepare("
             SELECT r.r_id, r.r_type, r.r_price
             FROM ROOM r
@@ -120,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->begin_transaction();
             
             try {
-                // 建立預訂記錄 - 使用 RES 格式的 ID
+                // 建立預訂記錄
                 $res_id = generateReservationId($conn);
                 $stmt = $conn->prepare("
                     INSERT INTO RESERVATION (res_id, c_id, res_checkindate, res_checkoutdate, res_date) 
@@ -137,7 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->bind_param("ss", $available_room['r_id'], $res_id);
                 $stmt->execute();
 
-                // 建立帳單 - 使用 BILL 格式的 ID
+                // 計算服務總額
+                $service_total = 0;
+                if (!empty($selected_services)) {
+                    $service_total = array_sum($selected_services);
+                }
+
+                // 建立帳單
                 $stmt = $conn->prepare("
                     SELECT b_id 
                     FROM BILL 
@@ -161,13 +173,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $stmt = $conn->prepare("
                     INSERT INTO BILL (b_id, res_id, r_cost, service_total) 
-                    VALUES (?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?)
                 ");
-                $stmt->bind_param("ssi", $bill_id, $res_id, $total_cost);
+                $stmt->bind_param("ssii", $bill_id, $res_id, $total_cost, $service_total);
                 $stmt->execute();
 
                 $conn->commit();
-                header("Location: customer.php");
+                echo "<script>
+                    window.parent.location.href = 'customer.php';
+                    window.parent.document.querySelector('.modal').querySelector('.btn-close').click();
+                </script>";
                 exit();
                 
             } catch (Exception $e) {
@@ -208,76 +223,100 @@ function generateReservationId($conn) {
     <title>預訂房間</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: none;
+            padding: 0;
+        }
+        .navbar {
+            display: none;
+        }
+        .container {
+            padding: 0;
+        }
+        .card {
+            border: none;
+            box-shadow: none;
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="home.php">返回首頁</a>
-        </div>
-    </nav>
-
-    <div class="container py-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header">
-                        <h4 class="mb-0">預訂房間</h4>
+    <div class="container">
+        <div class="card">
+            <div class="card-body">
+                <?php if (!empty($errors)): ?>
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            <?php foreach ($errors as $error): ?>
+                                <li><?php echo htmlspecialchars($error); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
                     </div>
-                    <div class="card-body">
-                        <?php if (!empty($errors)): ?>
-                            <div class="alert alert-danger">
-                                <ul class="mb-0">
-                                    <?php foreach ($errors as $error): ?>
-                                        <li><?php echo htmlspecialchars($error); ?></li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
-                        <?php endif; ?>
+                <?php endif; ?>
 
-                        <div class="row mb-4">
-                            <div class="col-md-6">
-                                <h5><?php echo htmlspecialchars($room_info['type_name']); ?></h5>
-                                <p class="text-muted">每晚 NT$ <?php echo number_format($room_info['r_price']); ?></p>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h5><?php echo htmlspecialchars($room_info['type_name']); ?></h5>
+                        <p class="text-muted">每晚 NT$ <?php echo number_format($room_info['r_price']); ?></p>
+                    </div>
+                </div>
+
+                <form method="POST">
+                    <div class="row g-3">
+                        <!-- 個人資料欄位 -->
+                        <div class="col-md-6">
+                            <label for="customer_name" class="form-label">姓名</label>
+                            <input type="text" class="form-control" id="customer_name" name="customer_name" 
+                                   value="<?php echo htmlspecialchars($customer['c_info_name'] ?? ''); ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="customer_phone" class="form-label">電話</label>
+                            <input type="tel" class="form-control" id="customer_phone" name="customer_phone" 
+                                   value="<?php echo htmlspecialchars($customer['c_info_phone'] ?? ''); ?>" required>
+                        </div>
+                        <div class="col-12">
+                            <label for="customer_email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="customer_email" name="customer_email" 
+                                   value="<?php echo htmlspecialchars($customer['c_info_email'] ?? ''); ?>" required>
+                        </div>
+
+                        <!-- 日期選擇 -->
+                        <div class="col-md-6">
+                            <label for="checkin_date" class="form-label">入住日期</label>
+                            <input type="date" class="form-control" id="checkin_date" name="checkin_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="checkout_date" class="form-label">退房日期</label>
+                            <input type="date" class="form-control" id="checkout_date" name="checkout_date" required>
+                        </div>
+
+                        <!-- 服務選擇 -->
+                        <div class="col-12">
+                            <label class="form-label">附加服務</label>
+                            <div class="row">
+                                <?php while($service = $services_result->fetch_assoc()): ?>
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               name="services[]" 
+                                               value="<?php echo $service['s_price']; ?>" 
+                                               id="service<?php echo $service['s_id']; ?>">
+                                        <label class="form-check-label" for="service<?php echo $service['s_id']; ?>">
+                                            <?php echo htmlspecialchars($service['s_type']); ?> 
+                                            (NT$ <?php echo number_format($service['s_price']); ?>)
+                                        </label>
+                                    </div>
+                                </div>
+                                <?php endwhile; ?>
                             </div>
                         </div>
 
-                        <form method="POST">
-                            <div class="row g-3">
-                                <!-- 個人資料欄位 -->
-                                <div class="col-md-6">
-                                    <label for="customer_name" class="form-label">姓名</label>
-                                    <input type="text" class="form-control" id="customer_name" name="customer_name" 
-                                           value="<?php echo htmlspecialchars($customer['c_info_name'] ?? ''); ?>" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="customer_phone" class="form-label">電話</label>
-                                    <input type="tel" class="form-control" id="customer_phone" name="customer_phone" 
-                                           value="<?php echo htmlspecialchars($customer['c_info_phone'] ?? ''); ?>" required>
-                                </div>
-                                <div class="col-12">
-                                    <label for="customer_email" class="form-label">Email</label>
-                                    <input type="email" class="form-control" id="customer_email" name="customer_email" 
-                                           value="<?php echo htmlspecialchars($customer['c_info_email'] ?? ''); ?>" required>
-                                </div>
-
-                                <!-- 日期選擇 -->
-                                <div class="col-md-6">
-                                    <label for="checkin_date" class="form-label">入住日期</label>
-                                    <input type="date" class="form-control" id="checkin_date" name="checkin_date" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="checkout_date" class="form-label">退房日期</label>
-                                    <input type="date" class="form-control" id="checkout_date" name="checkout_date" required>
-                                </div>
-
-                                <div class="col-12">
-                                    <button type="submit" class="btn btn-primary">確認預訂</button>
-                                    <a href="home.php" class="btn btn-secondary">取消</a>
-                                </div>
-                            </div>
-                        </form>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">確認預訂</button>
+                            <a href="home.php" class="btn btn-secondary">取消</a>
+                        </div>
                     </div>
-                </div>
+                </form>
             </div>
         </div>
     </div>
