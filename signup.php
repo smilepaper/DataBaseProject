@@ -26,34 +26,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         exit;
     }
 
-    // 4. 自動產生 u_id
-    $uid = uniqid("U"); // 例如：U662ff3e13d4c8
     $role = "CUSTOMER";
 
-    // ✅ 5. 不加密密碼，直接使用明文
-    // $hashed_password = password_hash($password, PASSWORD_DEFAULT); // ⛔這行不要用
-
-    // 6. 寫入 USER 和 CUSTOMER（同時使用 transaction）
+    // 4. 使用 transaction 保護多步驟寫入
     $conn->begin_transaction();
+
     try {
-        // 6.1 插入 USER（直接用 $password）
-        $stmt_user = $conn->prepare("INSERT INTO USER (u_id, u_account, u_password, role) VALUES (?, ?, ?, ?)");
-        $stmt_user->bind_param("ssss", $uid, $account, $password, $role);
+        // 5. 插入 USER，u_id 由資料庫自動產生
+        $stmt_user = $conn->prepare("INSERT INTO USER (u_account, u_password, role) VALUES (?, ?, ?)");
+        $stmt_user->bind_param("sss", $account, $password, $role);
         $stmt_user->execute();
 
-        // 6.2 插入 CUSTOMER
+        // 6. 取得自動產生的 u_id
+        $uid = $conn->insert_id;
+
+        // 7. 插入 CUSTOMER，c_id 使用剛取得的 u_id
         $stmt_customer = $conn->prepare("INSERT INTO CUSTOMER (c_id, c_info_name, c_info_birth, c_info_email, c_info_address, c_info_phone) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt_customer->bind_param("ssssss", $uid, $name, $birth, $email, $address, $phone);
+        $stmt_customer->bind_param("isssss", $uid, $name, $birth, $email, $address, $phone);
         $stmt_customer->execute();
 
+        // 8. 提交交易
         $conn->commit();
-        echo "<script>alert('註冊成功！'); window.location.href='login.html';</script>";
+
+        echo "<script>alert('註冊成功！'); window.location.href='index.php';</script>";
     } catch (Exception $e) {
         $conn->rollback();
         echo "註冊失敗：" . $e->getMessage();
     }
 
-    // 關閉連線
+    // 9. 關閉資源
     $stmt_user->close();
     $stmt_customer->close();
     $check_stmt->close();
