@@ -127,21 +127,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             try {
                 // 建立預訂記錄
-                $res_id = generateReservationId($conn);
                 $stmt = $conn->prepare("
-                    INSERT INTO RESERVATION (res_id, c_id, res_checkindate, res_checkoutdate, res_date) 
-                    VALUES (?, ?, ?, ?, CURDATE())
+                    INSERT INTO RESERVATION (c_id, res_checkindate, res_checkoutdate, res_date, status) 
+                    VALUES (?, ?, ?, CURDATE(), '未完成')
                 ");
-                $stmt->bind_param("ssss", $res_id, $customer_id, $checkin_date, $checkout_date);
-                $stmt->execute();
+                $stmt->bind_param("iss", $customer_id, $checkin_date, $checkout_date);
+                
+                if (!$stmt->execute()) {
+                    throw new Exception("預訂記錄建立失敗：" . $stmt->error);
+                }
+                
+                $res_id = $conn->insert_id; // 獲取自動生成的 res_id
 
                 // 建立房間預訂關聯
                 $stmt = $conn->prepare("
                     INSERT INTO RESERVATION_ROOM (r_id, res_id) 
                     VALUES (?, ?)
                 ");
-                $stmt->bind_param("ss", $available_room['r_id'], $res_id);
-                $stmt->execute();
+                $stmt->bind_param("si", $available_room['r_id'], $res_id);
+                
+                if (!$stmt->execute()) {
+                    throw new Exception("房間預訂關聯建立失敗：" . $stmt->error);
+                }
 
                 // 計算服務總額
                 $service_total = 0;
@@ -149,37 +156,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $service_total = array_sum($selected_services);
                 }
 
-                // 建立帳單
-                $stmt = $conn->prepare("
-                    SELECT b_id 
-                    FROM BILL 
-                    WHERE b_id LIKE 'BILL%' 
-                    ORDER BY b_id DESC 
-                    LIMIT 1
-                ");
-                $stmt->execute();
-                $result = $stmt->get_result();
-                
-                if ($row = $result->fetch_assoc()) {
-                    $lastId = intval(substr($row['b_id'], 4));
-                    $newId = $lastId + 1;
-                } else {
-                    $newId = 1;
-                }
-                $bill_id = 'BILL' . str_pad($newId, 5, '0', STR_PAD_LEFT);
-
-                $days = $checkin->diff($checkout)->days;
                 $total_cost = $room_info['r_price'] * $days;
+                $r_total = $total_cost + $service_total; // 加入服務費用
                 
-                $stmt = $conn->prepare("
-                    INSERT INTO BILL (b_id, res_id, r_cost, service_total) 
-                    VALUES (?, ?, ?, ?)
-                ");
-                $stmt->bind_param("ssii", $bill_id, $res_id, $total_cost, $service_total);
-                $stmt->execute();
+                // 儲存服務選擇到 SESSION 中，等待管理員確認後再建立帳單
+                $_SESSION['pending_bill'] = [
+                    'res_id' => $res_id,
+                    'r_cost' => $total_cost,
+                    'service_total' => $service_total,
+                    'r_total' => $r_total,
+                    'selected_services' => $selected_services
+                ];
 
                 $conn->commit();
                 echo "<script>
+                    alert('預訂成功！請等待管理員確認。');
                     window.parent.location.href = 'customer.php';
                     window.parent.document.querySelector('.modal').querySelector('.btn-close').click();
                 </script>";

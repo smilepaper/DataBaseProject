@@ -441,24 +441,38 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                         <td><?php echo htmlspecialchars($reservation['c_info_name']); ?></td>
                                         <td><?php echo htmlspecialchars($reservation['res_checkindate']); ?></td>
                                         <td><?php echo htmlspecialchars($reservation['res_checkoutdate']); ?></td>
-                                        <td><?php echo htmlspecialchars($reservation['r_type']); ?></td>
                                         <td>
-                                            <?php 
-                                            $today = new DateTime();
-                                            $checkin = new DateTime($reservation['res_checkindate']);
-                                            if ($today < $checkin) {
-                                                echo '<span class="badge bg-warning">即將入住</span>';
-                                            } else {
-                                                echo '<span class="badge bg-success">已完成</span>';
+                                            <?php
+                                            switch($reservation['r_type']) {
+                                                case 1: echo '標準單人房'; break;
+                                                case 2: echo '標準雙人房'; break;
+                                                case 3: echo '標準三人房'; break;
+                                                case 4: echo ($reservation['r_price'] == 4000) ? '標準四人房' : '豪華四人房'; break;
+                                                case 6: echo '標準六人房'; break;
                                             }
                                             ?>
                                         </td>
                                         <td>
-                                            <button class="btn btn-sm btn-primary" 
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#billModal<?php echo htmlspecialchars($reservation['res_id']); ?>">
-                                                詳情
-                                            </button>
+                                            <?php if (!isset($reservation['b_id'])): ?>
+                                                <span class="badge bg-warning">待確認</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-success">已確認</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group">
+                                                <?php if (!isset($reservation['b_id'])): ?>
+                                                    <button class="btn btn-sm btn-success" 
+                                                            onclick="confirmReservation('<?php echo $reservation['res_id']; ?>')">
+                                                        確認訂單
+                                                    </button>
+                                                <?php endif; ?>
+                                                <button class="btn btn-sm btn-primary" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#billModal<?php echo htmlspecialchars($reservation['res_id']); ?>">
+                                                    詳情
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
 
@@ -478,31 +492,63 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                                                 <p><?php echo htmlspecialchars($reservation['res_id']); ?></p>
                                                             </div>
                                                             <div class="mb-3">
-                                                                <label class="form-label fw-bold">帳單編號</label>
-                                                                <p><?php echo htmlspecialchars($reservation['b_id']); ?></p>
+                                                                <label class="form-label fw-bold">客戶姓名</label>
+                                                                <p><?php echo htmlspecialchars($reservation['c_info_name']); ?></p>
                                                             </div>
                                                             <div class="mb-3">
-                                                                <label class="form-label fw-bold">房間費用</label>
-                                                                <p>NT$ <?php echo number_format($reservation['r_cost'], 0); ?></p>
+                                                                <label class="form-label fw-bold">入住日期</label>
+                                                                <p><?php echo htmlspecialchars($reservation['res_checkindate']); ?></p>
                                                             </div>
                                                             <div class="mb-3">
-                                                                <label class="form-label fw-bold">服務費用</label>
-                                                                <p>NT$ <?php echo number_format($reservation['service_total'], 0); ?></p>
+                                                                <label class="form-label fw-bold">退房日期</label>
+                                                                <p><?php echo htmlspecialchars($reservation['res_checkoutdate']); ?></p>
                                                             </div>
                                                             <div class="mb-3">
-                                                                <label class="form-label fw-bold">折扣</label>
-                                                                <p><?php echo $reservation['discount'] ? number_format($reservation['discount'] * 100, 0) . '%' : '無'; ?></p>
-                                                            </div>
-                                                            <div class="mb-3">
-                                                                <label class="form-label fw-bold">總金額</label>
-                                                                <p>NT$ <?php 
-                                                                    $total = $reservation['r_cost'] + $reservation['service_total'];
-                                                                    if ($reservation['discount']) {
-                                                                        $total = $total * (1 - $reservation['discount']);
+                                                                <label class="form-label fw-bold">房型</label>
+                                                                <p>
+                                                                    <?php
+                                                                    switch($reservation['r_type']) {
+                                                                        case 1: echo '標準單人房'; break;
+                                                                        case 2: echo '標準雙人房'; break;
+                                                                        case 3: echo '標準三人房'; break;
+                                                                        case 4: echo ($reservation['r_price'] == 4000) ? '標準四人房' : '豪華四人房'; break;
+                                                                        case 6: echo '標準六人房'; break;
                                                                     }
-                                                                    echo number_format($total, 0);
-                                                                ?></p>
+                                                                    ?>
+                                                                </p>
                                                             </div>
+                                                            <?php if (isset($reservation['b_id'])): ?>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label fw-bold">帳單編號</label>
+                                                                    <p><?php echo htmlspecialchars($reservation['b_id']); ?></p>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label fw-bold">房間費用</label>
+                                                                    <p>NT$ <?php echo number_format($reservation['r_cost'], 0); ?></p>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label fw-bold">服務費用</label>
+                                                                    <p>NT$ <?php echo number_format($reservation['service_total'], 0); ?></p>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label fw-bold">折扣</label>
+                                                                    <p><?php echo $reservation['discount'] ? number_format($reservation['discount'] * 100, 0) . '%' : '無'; ?></p>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label fw-bold">總金額</label>
+                                                                    <p>NT$ <?php 
+                                                                        $total = $reservation['r_cost'] + $reservation['service_total'];
+                                                                        if ($reservation['discount']) {
+                                                                            $total = $total * (1 - $reservation['discount']);
+                                                                        }
+                                                                        echo number_format($total, 0);
+                                                                    ?></p>
+                                                                </div>
+                                                            <?php else: ?>
+                                                                <div class="alert alert-warning">
+                                                                    此訂單尚未確認，無法顯示帳單資訊
+                                                                </div>
+                                                            <?php endif; ?>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -790,6 +836,30 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
         if (currentIcon) {
             currentIcon.className = 
                 currentDirection === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down';
+        }
+    }
+
+    function confirmReservation(resId) {
+        if (confirm('確定要確認此訂單嗎？確認後將生成帳單。')) {
+            fetch('confirm_reservation.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `res_id=${resId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('訂單已確認！');
+                    location.reload();
+                } else {
+                    alert('錯誤：' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('發生錯誤：' + error);
+            });
         }
     }
 </script>
