@@ -77,11 +77,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   </head>
   <body>
     <script>
-    // 一進入頁面就執行
     window.onload = function() {
         const correctPassword = "123456789"; // 你設定的內部密碼
         let input = prompt("請輸入公司內部密碼以進入註冊頁面：");
-        // 如果密碼錯誤就跳回上一頁或關閉視窗
+
         if (input !== correctPassword) {
         alert("密碼錯誤，無法進入註冊頁面！");
         window.location.href = "index.php"; // 或用 history.back();
