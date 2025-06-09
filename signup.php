@@ -72,7 +72,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <!--<title>Registration Form in HTML CSS</title>-->
     <!---Custom CSS File--->
-    <link rel="stylesheet" href="css/style1.css" />
+    <link rel="stylesheet" href="css/signupstyle.css" />
   </head>
   <body>
     <section class="container" >
