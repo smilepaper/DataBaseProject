@@ -55,9 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	<body class="img js-fullheight" style="background-image: url(images/bg.jpg);">
 	<section class="ftco-section">
 		<!-- 登入格 -->
-		<div class="container" style="max-width: 400px;">
+		<div class="container" style="max-width: 400px;margin-top: 150px;">
 			<div class="row justify-content-center">
-				<div class="col-md-11 col-lg-9">
+				<div class="col-md-11 col-lg-9" style="margin-top: 20px;">
 					<div class="login-wrap p-0">
 						<h3 class="mb-4 text-center">Have an account?</h3>
 						<form action="index.php" method="post" class="signin-form">
