@@ -72,8 +72,8 @@ $rooms_stmt = $conn->prepare("
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
-            WHEN r.r_type = 4 AND r.r_price = 4000 THEN '標準四人房'
-            WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
+            WHEN r.r_type = 4 THEN '標準四人房'
+            WHEN r.r_type = 5 THEN '豪華四人房'
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
         CASE 
@@ -95,10 +95,15 @@ $rooms_result = $rooms_stmt->get_result();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_room_type'])) {
     $room_type = $_POST['room_type'];
     $room_price = $_POST['room_price'];
-    
-    $update_stmt = $conn->prepare("UPDATE ROOM SET r_price = ? WHERE r_type = ?");
-    $update_stmt->bind_param("ii", $room_price, $room_type);
-    
+    // 獲取前端傳過來的舊價格
+    $current_price = $_POST['current_price']; 
+
+    // 修改 UPDATE 語句，增加 r_price 的條件
+    // 這會確保只有 r_type 為指定值，且 r_price 等於舊價格的房間會被更新
+    $update_stmt = $conn->prepare("UPDATE ROOM SET r_price = ? WHERE r_type = ? AND r_price = ?");
+    // 注意綁定參數的類型，現在有三個整數參數
+    $update_stmt->bind_param("iii", $room_price, $room_type, $current_price); 
+
     if ($update_stmt->execute()) {
         $_SESSION['update_success'] = true;
         header('Location: ' . $_SERVER['PHP_SELF'] . '#rooms');
@@ -458,6 +463,7 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                                 <div class="modal-body">
                                                     <form method="POST">
                                                         <input type="hidden" name="room_type" value="<?php echo $room['r_type']; ?>">
+                                                        <input type="hidden" name="current_price" value="<?php echo htmlspecialchars($room['r_price']); ?>"> 
                                                         <div class="mb-3">
                                                             <label class="form-label">房型</label>
                                                             <input type="text" class="form-control" value="<?php echo htmlspecialchars($room['type_name']); ?>" readonly>
@@ -465,7 +471,7 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                                         <div class="mb-3">
                                                             <label class="form-label">價格</label>
                                                             <input type="number" class="form-control" name="room_price" 
-                                                                   value="<?php echo htmlspecialchars($room['r_price']); ?>" required>
+                                                                value="<?php echo htmlspecialchars($room['r_price']); ?>" required>
                                                         </div>
                                                         <div class="text-end">
                                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
