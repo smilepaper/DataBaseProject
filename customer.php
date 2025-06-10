@@ -60,9 +60,9 @@ $services_stmt = $conn->prepare("
         sd.quantity,
         b.res_id
     FROM SERVICEDETAIL sd
-    JOIN BILL b ON sd.b_id = b.b_id
+    JOIN RESERVATION r ON sd.res_id = r.res_id
     JOIN SERVICE s ON sd.s_id = s.s_id
-    JOIN RESERVATION r ON b.res_id = r.res_id
+    JOIN BILL b ON r.res_id = b.res_id
     WHERE r.c_id = ?
     ORDER BY b.b_id DESC
 ");

@@ -227,7 +227,13 @@ $type_result = $conn->query($type_query);
                         ?>
                             <div class="col-md-6 mb-4">
                                 <div class="card room-card">
-                                    <img src="images/room-<?php echo $room['r_type']; ?>.jpg" 
+                                    <img src="images/room-<?php 
+                                        if ($room['r_type'] == 4) {
+                                            echo $room['r_price'] == 4000 ? '4-standard' : '4-deluxe';
+                                        } else {
+                                            echo $room['r_type'];
+                                        }
+                                    ?>.jpg" 
                                          class="card-img-top" style="height: 200px; object-fit: cover;"
                                          alt="<?php echo htmlspecialchars($room['type_name']); ?>">
                                     <div class="card-body">

@@ -62,7 +62,7 @@ try {
         FROM RESERVATION r
         JOIN RESERVATION_ROOM rr ON r.res_id = rr.res_id
         JOIN ROOM rm ON rr.r_id = rm.r_id
-        LEFT JOIN SERVICEDETAIL sd ON sd.b_id = (SELECT b_id FROM BILL WHERE res_id = r.res_id)
+        LEFT JOIN SERVICEDETAIL sd ON sd.res_id = r.res_id
         LEFT JOIN SERVICE s ON sd.s_id = s.s_id
         WHERE r.res_id = ?
         GROUP BY r.res_id, rm.r_price
@@ -78,8 +78,8 @@ try {
     // 將服務詳細資訊寫入 SERVICEDETAIL 表格
     if (isset($_SESSION['pending_bill']['selected_services']) && !empty($_SESSION['pending_bill']['selected_services'])) {
         foreach ($_SESSION['pending_bill']['selected_services'] as $s_id => $s_price) {
-            $stmt = $conn->prepare("INSERT INTO SERVICEDETAIL (b_id, s_id) VALUES (?, ?)");
-            $stmt->bind_param("ii", $bill_id, $s_id);
+            $stmt = $conn->prepare("INSERT INTO SERVICEDETAIL (res_id, s_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $res_id, $s_id);
             if (!$stmt->execute()) {
                 throw new Exception("寫入服務詳細資訊失敗：" . $stmt->error);
             }

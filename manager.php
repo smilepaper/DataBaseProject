@@ -35,16 +35,28 @@ $reservations_stmt = $conn->prepare("
         c.c_info_name, 
         r.res_checkindate, 
         r.res_checkoutdate, 
-        rm.r_type,
+        GROUP_CONCAT(
+            CASE 
+                WHEN rm.r_type = 1 THEN '標準單人房'
+                WHEN rm.r_type = 2 THEN '標準雙人房'
+                WHEN rm.r_type = 3 THEN '標準三人房'
+                WHEN rm.r_type = 4 AND rm.r_price = 4000 THEN '標準四人房'
+                WHEN rm.r_type = 4 AND rm.r_price = 6000 THEN '豪華四人房'
+                WHEN rm.r_type = 6 THEN '標準六人房'
+            END
+        ) as room_types,
         b.b_id,
         b.discount,
         b.service_total,
-        b.r_cost
+        b.r_cost,
+        r.days,
+        r.status
     FROM RESERVATION r
     JOIN CUSTOMER c ON r.c_id = c.c_id
     JOIN RESERVATION_ROOM rr ON r.res_id = rr.res_id
     JOIN ROOM rm ON rr.r_id = rm.r_id
     LEFT JOIN BILL b ON r.res_id = b.res_id
+    GROUP BY r.res_id, c.c_info_name, r.res_checkindate, r.res_checkoutdate, b.b_id, b.discount, b.service_total, b.r_cost, r.days, r.status
     ORDER BY r.res_id DESC
 ");
 $reservations_stmt->execute();
@@ -158,18 +170,11 @@ $top_customers_stmt = $conn->prepare("
 $top_customers_stmt->execute();
 $top_customers_result = $top_customers_stmt->get_result();
 
-// 獲取過去6個月預訂率超過50%的房間
+// 獲取房間使用率分析
 $room_occupancy_stmt = $conn->prepare("
-    WITH RECURSIVE months AS (
-        SELECT DATE_FORMAT(CURDATE() - INTERVAL 5 MONTH, '%Y-%m-01') as month_start_date
-        UNION ALL
-        SELECT month_start_date + INTERVAL 1 MONTH
-        FROM months
-        WHERE month_start_date <= CURDATE()
-    )
-    SELECT
+    SELECT 
         r.r_type,
-        CASE
+        CASE 
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
@@ -177,18 +182,16 @@ $room_occupancy_stmt = $conn->prepare("
             WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
-        DATE_FORMAT(m.month_start_date, '%Y-%m') as month,
+        DATE_FORMAT(res.res_checkindate, '%Y-%m') as month,
+        COUNT(DISTINCT CASE WHEN res.res_id IS NOT NULL THEN r.r_id END) as booked_rooms,
         COUNT(DISTINCT r.r_id) as total_rooms,
-        COUNT(DISTINCT CASE WHEN res.res_id IS NOT NULL THEN r.r_id END) as occupied_rooms,
-        (COUNT(DISTINCT CASE WHEN res.res_id IS NOT NULL THEN r.r_id END) / COUNT(DISTINCT r.r_id)) * 100 as occupancy_rate
+        ROUND((COUNT(DISTINCT CASE WHEN res.res_id IS NOT NULL THEN r.r_id END) / COUNT(DISTINCT r.r_id)) * 100, 2) as occupancy_rate
     FROM ROOM r
-    CROSS JOIN months m
     LEFT JOIN RESERVATION_ROOM rr ON r.r_id = rr.r_id
-    LEFT JOIN RESERVATION res ON rr.res_id = res.res_id
-        AND res.res_checkindate <= LAST_DAY(m.month_start_date)
-        AND res.res_checkoutdate > DATE_FORMAT(m.month_start_date, '%Y-%m-01')
+    LEFT JOIN RESERVATION res ON rr.res_id = res.res_id 
+        AND res.res_checkindate >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
     GROUP BY r.r_type, type_name, month
-    HAVING (COUNT(DISTINCT CASE WHEN res.res_id IS NOT NULL THEN r.r_id END) / COUNT(DISTINCT r.r_id)) * 100 > 0
+    HAVING occupancy_rate > 0
     ORDER BY month DESC, occupancy_rate DESC
 ");
 
@@ -441,17 +444,7 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                         <td><?php echo htmlspecialchars($reservation['c_info_name']); ?></td>
                                         <td><?php echo htmlspecialchars($reservation['res_checkindate']); ?></td>
                                         <td><?php echo htmlspecialchars($reservation['res_checkoutdate']); ?></td>
-                                        <td>
-                                            <?php
-                                            switch($reservation['r_type']) {
-                                                case 1: echo '標準單人房'; break;
-                                                case 2: echo '標準雙人房'; break;
-                                                case 3: echo '標準三人房'; break;
-                                                case 4: echo ($reservation['r_price'] == 4000) ? '標準四人房' : '豪華四人房'; break;
-                                                case 6: echo '標準六人房'; break;
-                                            }
-                                            ?>
-                                        </td>
+                                        <td><?php echo htmlspecialchars($reservation['room_types']); ?></td>
                                         <td>
                                             <?php if (!isset($reservation['b_id'])): ?>
                                                 <span class="badge bg-warning">待確認</span>
@@ -505,17 +498,7 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                                             </div>
                                                             <div class="mb-3">
                                                                 <label class="form-label fw-bold">房型</label>
-                                                                <p>
-                                                                    <?php
-                                                                    switch($reservation['r_type']) {
-                                                                        case 1: echo '標準單人房'; break;
-                                                                        case 2: echo '標準雙人房'; break;
-                                                                        case 3: echo '標準三人房'; break;
-                                                                        case 4: echo ($reservation['r_price'] == 4000) ? '標準四人房' : '豪華四人房'; break;
-                                                                        case 6: echo '標準六人房'; break;
-                                                                    }
-                                                                    ?>
-                                                                </p>
+                                                                <p><?php echo htmlspecialchars($reservation['room_types']); ?></p>
                                                             </div>
                                                             <?php if (isset($reservation['b_id'])): ?>
                                                                 <div class="mb-3">

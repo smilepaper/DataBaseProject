@@ -6,12 +6,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['Username'];
     $password = $_POST['Password'];
 
-    $conn = new mysqli('localhost', 'root', '', 'HOTELRESERVATION');
-    if ($conn->connect_error) {
-        die("資料庫連線失敗：" . $conn->connect_error);
+    $db = new mysqli('localhost', 'root', '', 'HOTELRESERVATION');
+    if ($db->connect_error) {
+        die("資料庫連線失敗：" . $db->connect_error);
     }
 
-    $stmt = $conn->prepare("SELECT * FROM USER WHERE u_account = ? AND u_password = ?");
+    $stmt = $db->prepare("SELECT * FROM USER WHERE u_account = ? AND u_password = ?");
     $stmt->bind_param("ss", $username, $password); 
     $stmt->execute();
     $result = $stmt->get_result();
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $stmt->close();
-    $conn->close();
+    $db->close();
 }
 ?>
 
