@@ -117,8 +117,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_service'])) {
     $service_type = $_POST['service_type'];
     $service_price = $_POST['service_price'];
     
+    // 先檢查服務是否存在
+    $check_stmt = $conn->prepare("SELECT s_id FROM SERVICE WHERE s_id = ?");
+    $check_stmt->bind_param("s", $service_id);
+    $check_stmt->execute();
+    $result = $check_stmt->get_result();
+    
+    if ($result->num_rows === 0) {
+        $_SESSION['service_update_error'] = "找不到指定的服務";
+        header('Location: ' . $_SERVER['PHP_SELF'] . '#services');
+        exit();
+    }
+    
+    // 修改 SQL 查詢，只更新特定 ID 的服務
     $update_stmt = $conn->prepare("UPDATE SERVICE SET s_type = ?, s_price = ? WHERE s_id = ?");
-    $update_stmt->bind_param("sii", $service_type, $service_price, $service_id);
+    $update_stmt->bind_param("sis", $service_type, $service_price, $service_id);
     
     if ($update_stmt->execute()) {
         $_SESSION['service_update_success'] = true;
@@ -129,6 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_service'])) {
         header('Location: ' . $_SERVER['PHP_SELF'] . '#services');
         exit();
     }
+    
+    $check_stmt->close();
     $update_stmt->close();
 }
 
@@ -905,4 +920,4 @@ $conn->close();
 $current_month_revenue_stmt->close();
 $total_bookings_6_months_stmt->close();
 $room_booking_share_stmt->close();
-?>
+?> 
