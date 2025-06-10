@@ -14,7 +14,7 @@ $maxPrice = isset($_GET['max_price']) ? $_GET['max_price'] : '';
 $checkin_date = isset($_GET['checkin_date']) ? $_GET['checkin_date'] : '';
 $checkout_date = isset($_GET['checkout_date']) ? $_GET['checkout_date'] : '';
 
-// 處理房間查詢
+// 處理房間查詢 (當用戶點擊 "搜尋房間" 按鈕時，此區塊通常用於獲取單個房間的詳細可用性)
 $available_rooms = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search_rooms'])) {
     $checkin_date = $_POST['checkin_date'];
@@ -27,9 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search_rooms'])) {
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
-            WHEN r.r_type = 4 AND r.r_price = 4000 THEN '標準四人房'
-            WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
+            WHEN r.r_type = 4 THEN '標準四人房' -- r_type = 4 現在只代表標準四人房
+            WHEN r.r_type = 5 THEN '豪華四人房' -- r_type = 5 代表豪華四人房
             WHEN r.r_type = 6 THEN '標準六人房'
+            ELSE '未知房型' -- 新增一個預設值，以防萬一
         END as r_type_name
         FROM ROOM r
         WHERE r.r_id NOT IN (
@@ -70,7 +71,7 @@ if ($maxPrice !== '') {
     $types .= "i";
 }
 
-// 主要查詢
+// 主要查詢 - 查詢各房型的可用房間數量
 $query = "SELECT 
     r.r_type,
     r.r_price,
@@ -79,9 +80,10 @@ $query = "SELECT
         WHEN r.r_type = 1 THEN '標準單人房'
         WHEN r.r_type = 2 THEN '標準雙人房'
         WHEN r.r_type = 3 THEN '標準三人房'
-        WHEN r.r_type = 4 AND r.r_price = 4000 THEN '標準四人房'
-        WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
+        WHEN r.r_type = 4 THEN '標準四人房' -- r_type = 4 現在只代表標準四人房
+        WHEN r.r_type = 5 THEN '豪華四人房' -- r_type = 5 代表豪華四人房
         WHEN r.r_type = 6 THEN '標準六人房'
+        ELSE '未知房型' -- 新增一個預設值
     END as type_name
     FROM ROOM r
     WHERE r.r_id NOT IN (
@@ -101,23 +103,28 @@ if (!empty($conditions)) {
 
 $query .= " GROUP BY r.r_type, r.r_price ORDER BY r.r_type, r.r_price";
 
-// 執行查詢
+// 執行主要查詢
 $stmt = $conn->prepare($query);
+// 合併參數：先是日期參數，然後是篩選參數
 $params = array_merge([$checkout_date, $checkin_date, $checkout_date, $checkin_date, $checkin_date, $checkout_date], $params);
+// 合併類型字串：先是日期參數的類型（都是字串），然後是篩選參數的類型
 $types = "ssssss" . $types;
+// 使用 splat operator (...) 將參數陣列展開傳給 bind_param
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $room_types = $stmt->get_result();
 
-// 取得所有房型供篩選器使用
+// 取得所有房型供篩選器使用 (下拉選單)
 $type_query = "SELECT DISTINCT 
     r_type,
     CASE 
         WHEN r_type = 1 THEN '單人房'
         WHEN r_type = 2 THEN '雙人房'
         WHEN r_type = 3 THEN '三人房'
-        WHEN r_type = 4 THEN '四人房'
+        WHEN r_type = 4 THEN '標準四人房' -- r_type = 4 現在只代表標準四人房
+        WHEN r_type = 5 THEN '豪華四人房' -- 新增 r_type = 5
         WHEN r_type = 6 THEN '六人房'
+        ELSE '未知房型'
     END as type_name
     FROM ROOM
     ORDER BY r_type";
@@ -135,7 +142,6 @@ $type_result = $conn->query($type_query);
     <link rel="stylesheet" href="css/home.css">
 </head>
 <body>
-    <!-- 導航欄 -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="#">我也不知道叫啥飯店</a>
@@ -152,7 +158,6 @@ $type_result = $conn->query($type_query);
         </div>
     </nav>
 
-    <!-- 主視覺區域 -->
     <section class="main-section text-center">
         <div class="container">
             <h1 class="display-4">123123</h1>
@@ -161,11 +166,9 @@ $type_result = $conn->query($type_query);
         </div>
     </section>
 
-    <!-- 房型展示區 -->
     <section id="rooms" class="py-5">
         <div class="container">
             <div class="row">
-                <!-- 左側篩選欄 -->
                 <div class="col-md-3">
                     <div class="card sticky-top" style="top: 20px;">
                         <div class="card-header">
@@ -176,14 +179,14 @@ $type_result = $conn->query($type_query);
                                 <div class="col-12">
                                     <label for="checkin_date" class="form-label">入住日期</label>
                                     <input type="date" class="form-control" id="checkin_date" name="checkin_date" 
-                                           min="<?php echo date('Y-m-d'); ?>" 
-                                           value="<?php echo htmlspecialchars($checkin_date); ?>" required>
+                                            min="<?php echo date('Y-m-d'); ?>" 
+                                            value="<?php echo htmlspecialchars($checkin_date); ?>" required>
                                 </div>
                                 <div class="col-12">
                                     <label for="checkout_date" class="form-label">退房日期</label>
                                     <input type="date" class="form-control" id="checkout_date" name="checkout_date" 
-                                           min="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" 
-                                           value="<?php echo htmlspecialchars($checkout_date); ?>" required>
+                                            min="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" 
+                                            value="<?php echo htmlspecialchars($checkout_date); ?>" required>
                                 </div>
                                 <div class="col-12">
                                     <label for="type" class="form-label">房型</label>
@@ -200,12 +203,12 @@ $type_result = $conn->query($type_query);
                                 <div class="col-12">
                                     <label for="min_price" class="form-label">最低價格</label>
                                     <input type="number" class="form-control" id="min_price" name="min_price" 
-                                           value="<?php echo htmlspecialchars($minPrice); ?>">
+                                            value="<?php echo htmlspecialchars($minPrice); ?>">
                                 </div>
                                 <div class="col-12">
                                     <label for="max_price" class="form-label">最高價格</label>
                                     <input type="number" class="form-control" id="max_price" name="max_price"
-                                           value="<?php echo htmlspecialchars($maxPrice); ?>">
+                                            value="<?php echo htmlspecialchars($maxPrice); ?>">
                                 </div>
                                 <div class="col-12">
                                     <button type="submit" class="btn btn-primary w-100">套用篩選</button>
@@ -215,7 +218,6 @@ $type_result = $conn->query($type_query);
                     </div>
                 </div>
 
-                <!-- 右側房間列表 -->
                 <div class="col-md-9">
                     <div class="row">
                         <?php 
@@ -228,14 +230,11 @@ $type_result = $conn->query($type_query);
                             <div class="col-md-6 mb-4">
                                 <div class="card room-card">
                                     <img src="images/room-<?php 
-                                        if ($room['r_type'] == 4) {
-                                            echo $room['r_price'] == 4000 ? '4-standard' : '4-deluxe';
-                                        } else {
-                                            echo $room['r_type'];
-                                        }
+                                        // 根據 r_type 判斷圖片名稱
+                                        echo $room['r_type'];
                                     ?>.jpg" 
-                                         class="card-img-top" style="height: 200px; object-fit: cover;"
-                                         alt="<?php echo htmlspecialchars($room['type_name']); ?>">
+                                        class="card-img-top" style="height: 200px; object-fit: cover;"
+                                        alt="<?php echo htmlspecialchars($room['type_name']); ?>">
                                     <div class="card-body">
                                         <h5 class="card-title"><?php echo htmlspecialchars($room['type_name']); ?></h5>
                                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -257,7 +256,6 @@ $type_result = $conn->query($type_query);
                                 </div>
                             </div>
 
-                            <!-- 預訂表單 Modal -->
                             <div class="modal fade" id="reservationModal<?php echo $room['r_type']; ?>" tabindex="-1">
                                 <div class="modal-dialog modal-lg">
                                     <div class="modal-content">
