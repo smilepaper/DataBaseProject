@@ -75,6 +75,18 @@ try {
 
     $bill_id = $conn->insert_id;
 
+    // 將服務詳細資訊寫入 SERVICEDETAIL 表格
+    if (isset($_SESSION['pending_bill']['selected_services']) && !empty($_SESSION['pending_bill']['selected_services'])) {
+        foreach ($_SESSION['pending_bill']['selected_services'] as $s_id => $s_price) {
+            $stmt = $conn->prepare("INSERT INTO SERVICEDETAIL (b_id, s_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $bill_id, $s_id);
+            if (!$stmt->execute()) {
+                throw new Exception("寫入服務詳細資訊失敗：" . $stmt->error);
+            }
+        }
+        unset($_SESSION['pending_bill']['selected_services']); // 清除 session 中的服務資訊
+    }
+
     // 提交交易
     $conn->commit();
 
