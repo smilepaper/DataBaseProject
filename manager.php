@@ -210,9 +210,9 @@ $popular_rooms_stmt = $conn->prepare("
             WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
-        COUNT(rr.res_id) as reservation_count,
-        COALESCE(AVG(b.r_cost), 0) as avg_room_cost,
-        COALESCE(AVG(b.service_total), 0) as avg_service_cost
+        COUNT(rr.r_id) as reservation_count,
+        ROUND(SUM(DISTINCT b.r_cost), 0) as total_room_revenue,
+        ROUND(SUM(DISTINCT b.service_total), 0) as total_service_revenue
     FROM ROOM r
     JOIN RESERVATION_ROOM rr ON r.r_id = rr.r_id
     JOIN RESERVATION res ON rr.res_id = res.res_id
@@ -261,6 +261,15 @@ $total_reservations_6_months = $total_bookings_row['total_count'];
 
 // 獲取過去6個月房間預訂佔比
 $room_booking_share_stmt = $conn->prepare("
+    WITH total_bookings AS (
+        SELECT COUNT(*) as total_count
+        FROM RESERVATION_ROOM
+        WHERE res_id IN (
+            SELECT res_id 
+            FROM RESERVATION 
+            WHERE res_checkindate >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        )
+    )
     SELECT
         r.r_type,
         CASE
@@ -271,7 +280,8 @@ $room_booking_share_stmt = $conn->prepare("
             WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
-        COUNT(rr.res_id) as reservation_count_by_type_6_months
+        COUNT(rr.res_id) as reservation_count_by_type_6_months,
+        ROUND((COUNT(rr.res_id) * 100.0 / (SELECT total_count FROM total_bookings)), 2) as booking_percentage
     FROM ROOM r
     JOIN RESERVATION_ROOM rr ON r.r_id = rr.r_id
     JOIN RESERVATION res ON rr.res_id = res.res_id
@@ -705,17 +715,17 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                             <tr>
                                                 <th style="cursor: pointer;" onclick="sortTable(0, 'popular')">房型 <i class="bi bi-arrow-down-up"></i></th>
                                                 <th style="cursor: pointer;" onclick="sortTable(1, 'popular')">預訂次數 <i class="bi bi-arrow-down-up"></i></th>
-                                                <th style="cursor: pointer;" onclick="sortTable(2, 'popular')">平均房費 <i class="bi bi-arrow-down-up"></i></th>
-                                                <th style="cursor: pointer;" onclick="sortTable(3, 'popular')">平均服務費 <i class="bi bi-arrow-down-up"></i></th>
+                                                <th style="cursor: pointer;" onclick="sortTable(2, 'popular')">總房費收入 <i class="bi bi-arrow-down-up"></i></th>
+                                                <th style="cursor: pointer;" onclick="sortTable(3, 'popular')">總服務費收入 <i class="bi bi-arrow-down-up"></i></th>
                                             </tr>
                                         </thead>
                                         <tbody id="popularTable">
                                             <?php while($row = $popular_rooms_result->fetch_assoc()): ?>
                                             <tr>
-                                                <td><?php echo $row['type_name']; ?></td>
-                                                <td><?php echo $row['reservation_count']; ?></td>
-                                                <td>NT$ <?php echo number_format($row['avg_room_cost'], 0); ?></td>
-                                                <td>NT$ <?php echo number_format($row['avg_service_cost'], 0); ?></td>
+                                                <td><?php echo htmlspecialchars($row['type_name']); ?></td>
+                                                <td><?php echo htmlspecialchars($row['reservation_count']); ?></td>
+                                                <td>NT$ <?php echo number_format($row['total_room_revenue']); ?></td>
+                                                <td>NT$ <?php echo number_format($row['total_service_revenue']); ?></td>
                                             </tr>
                                             <?php endwhile; ?>
                                         </tbody>
@@ -746,15 +756,7 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                             <tr>
                                                 <td><?php echo htmlspecialchars($row['type_name']); ?></td>
                                                 <td><?php echo htmlspecialchars($row['reservation_count_by_type_6_months']); ?></td>
-                                                <td>
-                                                    <?php
-                                                        $booking_share_rate = 0;
-                                                        if ($total_reservations_6_months > 0) {
-                                                            $booking_share_rate = ($row['reservation_count_by_type_6_months'] / $total_reservations_6_months) * 100;
-                                                        }
-                                                        echo number_format($booking_share_rate, 1) . '%';
-                                                    ?>
-                                                </td>
+                                                <td><?php echo htmlspecialchars($row['booking_percentage']); ?>%</td>
                                             </tr>
                                             <?php endwhile; ?>
                                         </tbody>
@@ -835,6 +837,12 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
             .then(data => {
                 if (data.success) {
                     alert('訂單已確認！');
+                    // 保持在檢視訂單的標籤頁
+                    const reservationsTab = document.querySelector('button[data-bs-target="#reservations"]');
+                    if (reservationsTab) {
+                        reservationsTab.click();
+                    }
+                    // 重新載入頁面
                     location.reload();
                 } else {
                     alert('錯誤：' + data.message);
