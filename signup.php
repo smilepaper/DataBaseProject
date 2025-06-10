@@ -77,36 +77,36 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   </head>
   <body>
     <section class="container" >
-      <header>Registration Form</header>
+      <header>註冊表單</header>
       <form action="signup.php" method="POST" class="form">
         <div class="input-box">
-          <label>Full Name</label>
-          <input type="text" name="name" placeholder="Enter full name" required />
+          <label>全名</label>
+          <input type="text" name="name" placeholder="請輸入您的全名" required />
         </div>
         <div class="input-box">
-          <label>Email address (Account)</label>
-          <input type="email" name="email" placeholder="Enter email address" required />
+          <label>帳號 (必須是email)</label>
+          <input type="email" name="email" placeholder="請輸入您的帳號 (email)" required />
         </div>
         <div class="input-box">
-          <label>Password</label>
-          <input type="password" name="password" placeholder="Enter password" required />
+          <label>密碼</label>
+          <input type="password" name="password" placeholder="請輸入您的密碼" required />
           <span toggle="#password-field" class="fa fa-fw fa-eye field-icon toggle-password"></span>
         </div>
         <div class="column">
           <div class="input-box">
-            <label>Phone Number</label>
-            <input type="text" name="phone" placeholder="Enter phone number" required />
+            <label>電話號碼</label>
+            <input type="text" name="phone" placeholder="請輸入您的電話號碼" required />
           </div>
           <div class="input-box">
-            <label>Birth Date</label>
+            <label>生日</label>
             <input type="date" name="birth" placeholder="Enter birth date" required />
           </div>
         </div>
         <div class="input-box address">
-          <label>Address</label>
-          <input type="text" name="address" placeholder="Enter street address" required />
+          <label>住址</label>
+          <input type="text" name="address" placeholder="請輸入您的住址" required />
         </div>
-        <button type="submit">Submit</button>
+        <button type="submit">送出</button>
       </form>
     </section>
   </body>
