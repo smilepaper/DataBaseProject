@@ -100,9 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_room_type'])) 
     $update_stmt->bind_param("ii", $room_price, $room_type);
     
     if ($update_stmt->execute()) {
-        echo "<script>alert('房型價格更新成功！'); window.location.reload();</script>";
+        $_SESSION['update_success'] = true;
+        header('Location: ' . $_SERVER['PHP_SELF'] . '#rooms');
+        exit();
     } else {
-        echo "<script>alert('更新失敗：" . $conn->error . "');</script>";
+        $_SESSION['update_error'] = $conn->error;
+        header('Location: ' . $_SERVER['PHP_SELF'] . '#rooms');
+        exit();
     }
     $update_stmt->close();
 }
@@ -117,9 +121,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_service'])) {
     $update_stmt->bind_param("sii", $service_type, $service_price, $service_id);
     
     if ($update_stmt->execute()) {
-        echo "<script>alert('服務更新成功！'); window.location.reload();</script>";
+        $_SESSION['service_update_success'] = true;
+        header('Location: ' . $_SERVER['PHP_SELF'] . '#services');
+        exit();
     } else {
-        echo "<script>alert('更新失敗：" . $conn->error . "');</script>";
+        $_SESSION['service_update_error'] = $conn->error;
+        header('Location: ' . $_SERVER['PHP_SELF'] . '#services');
+        exit();
     }
     $update_stmt->close();
 }
@@ -303,6 +311,38 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
+    <?php if (isset($_SESSION['update_success'])): ?>
+    <script>
+        alert('房型價格更新成功！');
+    </script>
+    <?php 
+    unset($_SESSION['update_success']);
+    endif; 
+    ?>
+    <?php if (isset($_SESSION['update_error'])): ?>
+    <script>
+        alert('更新失敗：<?php echo $_SESSION['update_error']; ?>');
+    </script>
+    <?php 
+    unset($_SESSION['update_error']);
+    endif; 
+    ?>
+    <?php if (isset($_SESSION['service_update_success'])): ?>
+    <script>
+        alert('服務更新成功！');
+    </script>
+    <?php 
+    unset($_SESSION['service_update_success']);
+    endif; 
+    ?>
+    <?php if (isset($_SESSION['service_update_error'])): ?>
+    <script>
+        alert('服務更新失敗：<?php echo $_SESSION['service_update_error']; ?>');
+    </script>
+    <?php 
+    unset($_SESSION['service_update_error']);
+    endif; 
+    ?>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="#">飯店管理系統</a>
