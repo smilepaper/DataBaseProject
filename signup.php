@@ -89,7 +89,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
         <div class="input-box">
           <label>密碼</label>
-          <input type="password" name="password" placeholder="請輸入您的密碼" required />
+          <input type="text" name="password" placeholder="請輸入您的密碼" required />
           <span toggle="#password-field" class="fa fa-fw fa-eye field-icon toggle-password"></span>
         </div>
         <div class="column">
