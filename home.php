@@ -144,7 +144,7 @@ $type_result = $conn->query($type_query);
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="#">我也不知道叫啥飯店</a>
+            <a class="navbar-brand" href="#">飯店預約系統</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -158,11 +158,11 @@ $type_result = $conn->query($type_query);
         </div>
     </nav>
 
-    <section class="main-section text-center">
+    <section class="main-section text-center" >
         <div class="container">
-            <h1 class="display-4">123123</h1>
-            <p class="lead">超讚</p>
-            <a href="#rooms" class="btn btn-primary btn-lg">立即訂房</a>
+            <h1 class="display-4"></h1>
+            <p class="lead"></p>
+            
         </div>
     </section>
 
