@@ -811,8 +811,14 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                             <div class="card-body">
                                 <div class="mb-3">
                                     <label for="monthSelector" class="form-label">選擇月份</label>
-                                    <input type="month" id="monthSelector" class="form-control w-auto" value="<?php echo $month; ?>">
-                                </div>
+                                    <input type="month" id="monthSelector" class="form-control w-auto"
+                                        value="<?php echo htmlspecialchars($month); ?>"
+                                        onchange="this.form.submit()"> </div>
+                                <form id="monthForm" method="GET" action="">
+                                    <input type="hidden" name="tab" value="analytics">
+                                    <input type="hidden" name="month" id="hiddenMonthInput" value="<?php echo htmlspecialchars($month); ?>">
+                                </form>
+
                                 <div class="row">
                                     <div class="col-md-4">
                                         <div class="card bg-light mb-3">
@@ -842,6 +848,20 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                             </div>
                         </div>
                     </div>
+                
+
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const monthSelector = document.getElementById('monthSelector');
+                            const hiddenMonthInput = document.getElementById('hiddenMonthInput');
+                            const monthForm = document.getElementById('monthForm');
+
+                            monthSelector.addEventListener('change', function() {
+                                hiddenMonthInput.value = this.value; // 更新隱藏欄位的值
+                                monthForm.submit(); // 提交表單
+                            });
+                        });
+                    </script>
 
                     <!-- 顧客分析 -->
                     <div class="col-md-6 mb-4">
