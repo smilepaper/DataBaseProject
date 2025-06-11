@@ -1,123 +1,112 @@
 <?php
 session_start();
 
-// 檢查是否為管理員
+// 檢查是否登入且為管理員
 if (!isset($_SESSION['login_session']) || $_SESSION['role'] !== 'MANAGER') {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => '權限不足']);
+    header('Location: index.php');
     exit();
 }
-
-// 檢查必要參數
-if (!isset($_POST['res_id'])) {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => '缺少必要參數']);
-    exit();
-}
-
-$res_id = $_POST['res_id'];
 
 // 資料庫連線
 $conn = new mysqli('localhost', 'root', '', 'HOTELRESERVATION');
 if ($conn->connect_error) {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => '資料庫連線失敗：' . $conn->connect_error]);
+    die("資料庫連線失敗：" . $conn->connect_error);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['res_id'])) {
+    $res_id = $_POST['res_id'];
+    $discount = isset($_POST['discount']) ? floatval($_POST['discount']) / 100 : 0; // 將百分比轉換為小數
+    
+    // 開始交易
+    $conn->begin_transaction();
+    
+    try {
+        // 1. 獲取訂單資訊
+        $res_stmt = $conn->prepare("
+            SELECT r.*, 
+                   GROUP_CONCAT(rm.r_id) as room_ids,
+                   SUM(rm.r_price * r.days) as total_room_cost
+            FROM RESERVATION r
+            JOIN RESERVATION_ROOM rr ON r.res_id = rr.res_id
+            JOIN ROOM rm ON rr.r_id = rm.r_id
+            WHERE r.res_id = ?
+            GROUP BY r.res_id
+        ");
+        $res_stmt->bind_param("i", $res_id);
+        $res_stmt->execute();
+        $reservation = $res_stmt->get_result()->fetch_assoc();
+        
+        if (!$reservation) {
+            throw new Exception("找不到訂單");
+        }
+
+        // 2. 計算服務總額
+        $service_total = 0;
+        $service_stmt = $conn->prepare("
+            SELECT SUM(s.s_price * sd.quantity) as total
+            FROM SERVICEDETAIL sd
+            JOIN SERVICE s ON sd.s_id = s.s_id
+            WHERE sd.res_id = ?
+        ");
+        $service_stmt->bind_param("i", $res_id);
+        $service_stmt->execute();
+        $service_result = $service_stmt->get_result();
+        if ($service_row = $service_result->fetch_assoc()) {
+            $service_total = $service_row['total'] ?? 0;
+        }
+        
+        // 3. 創建帳單
+        $total_cost = $reservation['total_room_cost'];
+        $total_amount = $total_cost + $service_total;
+        $discounted_amount = $total_amount * (1 - $discount);
+
+        $bill_stmt = $conn->prepare("
+            INSERT INTO BILL (res_id, r_cost, service_total, discount, r_total)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $bill_stmt->bind_param("idddd", 
+            $res_id, 
+            $total_cost,
+            $service_total,
+            $discount,
+            $discounted_amount
+        );
+        $bill_stmt->execute();
+        
+        // 4. 更新訂單狀態
+        $update_stmt = $conn->prepare("
+            UPDATE RESERVATION 
+            SET status = '未完成'
+            WHERE res_id = ?
+        ");
+        $update_stmt->bind_param("i", $res_id);
+        $update_stmt->execute();
+        
+        // 提交交易
+        $conn->commit();
+        
+        $_SESSION['discount_update_success'] = true;
+        header('Location: manager.php#reservations');
+        exit();
+    } catch (Exception $e) {
+        // 回滾交易
+        $conn->rollback();
+        $_SESSION['discount_update_error'] = $e->getMessage();
+        header('Location: manager.php#reservations');
+        exit();
+    }
+    
+    $res_stmt->close();
+    $bill_stmt->close();
+    $update_stmt->close();
+    if (isset($service_stmt)) {
+        $service_stmt->close();
+    }
+} else {
+    $_SESSION['discount_update_error'] = '無效的請求';
+    header('Location: manager.php#reservations');
     exit();
 }
 
-// 開始交易
-$conn->begin_transaction();
-
-try {
-    // 檢查訂單是否已經確認
-    $check_stmt = $conn->prepare("SELECT b_id FROM BILL WHERE res_id = ?");
-    $check_stmt->bind_param("i", $res_id);
-    $check_stmt->execute();
-    $check_result = $check_stmt->get_result();
-    
-    if ($check_result->num_rows > 0) {
-        throw new Exception("此訂單已經確認過了");
-    }
-
-    // 更新預訂狀態
-    $stmt = $conn->prepare("
-        UPDATE RESERVATION 
-        SET status = '已完成' 
-        WHERE res_id = ?
-    ");
-    $stmt->bind_param("i", $res_id);
-    
-    if (!$stmt->execute()) {
-        throw new Exception("更新預訂狀態失敗：" . $stmt->error);
-    }
-
-    // 建立帳單
-    $stmt = $conn->prepare("
-        INSERT INTO BILL (res_id, r_cost, service_total, r_total) 
-        SELECT 
-            r.res_id,
-            r.days * rm.r_price as r_cost,
-            COALESCE(SUM(s.s_price), 0) as service_total,
-            (r.days * rm.r_price) + COALESCE(SUM(s.s_price), 0) as r_total
-        FROM RESERVATION r
-        JOIN RESERVATION_ROOM rr ON r.res_id = rr.res_id
-        JOIN ROOM rm ON rr.r_id = rm.r_id
-        LEFT JOIN SERVICEDETAIL sd ON sd.res_id = r.res_id
-        LEFT JOIN SERVICE s ON sd.s_id = s.s_id
-        WHERE r.res_id = ?
-        GROUP BY r.res_id, rm.r_price
-    ");
-    $stmt->bind_param("i", $res_id);
-    
-    if (!$stmt->execute()) {
-        throw new Exception("建立帳單失敗：" . $stmt->error);
-    }
-
-    $bill_id = $conn->insert_id;
-
-    // 將服務詳細資訊寫入 SERVICEDETAIL 表格
-    if (isset($_SESSION['pending_bill']['selected_services']) && !empty($_SESSION['pending_bill']['selected_services'])) {
-        foreach ($_SESSION['pending_bill']['selected_services'] as $s_id_from_session => $s_price) {
-            // 假設 quantity 預設為 1，如果需要用戶輸入，則從前端獲取
-            $quantity = 1; 
-
-            // 重要的修改：
-            // 1. 包含 quantity 和 b_id 欄位
-            // 2. 修改 bind_param 的類型： 's' for s_id (char), 'i' for res_id (int), 'i' for quantity (int), 'i' for b_id (int)
-            // 3. 使用正確的 $s_id_from_session 和 $bill_id
-            $stmt = $conn->prepare("INSERT INTO SERVICEDETAIL (s_id, res_id, quantity, b_id) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("siii", $s_id_from_session, $res_id, $quantity, $bill_id); 
-            
-            if (!$stmt->execute()) {
-                throw new Exception("寫入服務詳細資訊失敗：" . $stmt->error);
-            }
-        }
-        unset($_SESSION['pending_bill']['selected_services']); // 清除 session 中的服務資訊
-    }
-
-    // 提交交易
-    $conn->commit();
-
-    // 回傳成功訊息
-    header('Content-Type: application/json');
-    echo json_encode([
-        'success' => true,
-        'message' => '訂單確認成功',
-        'bill_id' => $bill_id
-    ]);
-
-} catch (Exception $e) {
-    // 回滾交易
-    $conn->rollback();
-    
-    // 回傳錯誤訊息
-    header('Content-Type: application/json');
-    echo json_encode([
-        'success' => false,
-        'message' => $e->getMessage()
-    ]);
-}
-
-// 關閉資料庫連線
 $conn->close();
 ?> 

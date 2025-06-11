@@ -172,18 +172,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             try {
                 // 建立預訂記錄
-                // RESERVATION 表欄位: c_id, res_checkindate, res_checkoutdate, res_date, status, selected_addservice
-                // res_date 使用 CURDATE()，所以不需要綁定變數
                 $stmt_res = $conn->prepare("
                     INSERT INTO RESERVATION (c_id, res_checkindate, res_checkoutdate, res_date, status, selected_addservice) 
                     VALUES (?, ?, ?, CURDATE(), ?, ?)
                 ");
-                // `status` 和 `selected_addservice` 在 SQL 中是 `tinyint(1)`
                 $status = 0; // 0代表未完成/待確認
                 $selected_addservice_flag = 0; // 初始設為0，不代表是否有附加服務，僅為資料庫結構所需
                 
-                // 修正 bind_param：對應 c_id, res_checkindate, res_checkoutdate, status, selected_addservice
-                // 類型：i (int), s (string), s (string), i (int), i (int)
                 $stmt_res->bind_param("issii", $customer_id, $checkin_date, $checkout_date, $status, $selected_addservice_flag);
                 
                 if (!$stmt_res->execute()) {
@@ -202,55 +197,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$stmt_rr->execute()) {
                     throw new Exception("房間預訂關聯建立失敗：" . $stmt_rr->error);
                 }
-                
-                $total_cost = $room_info['r_price'] * $days; // 房間總費用
-                $discount_amount = 0.00; // 顧客預訂時沒有折扣，折扣由管理者輸入
-                
-                // 預先計算 r_total 以便插入到 BILL 表
-                $r_total_calculated = $total_cost + $service_total - $discount_amount;
-                
-                // **重要：將帳單資訊寫入 BILL 表**
-                // 根據 fixed_hotel_sql (1).sql，bill 表有 discount (float) 和 r_total (decimal(10,2))
-                $stmt_bill = $conn->prepare("
-                    INSERT INTO BILL (res_id, r_cost, service_total, discount, r_total)
-                    VALUES (?, ?, ?, ?, ?)
-                ");
-                if ($stmt_bill === false) { 
-                    throw new Exception("BILL 預處理失敗: " . $conn->error);
-                }
-                // ***修正：將 'f' 替換為 'd'***
-                // 'iiddd' for res_id (int), r_cost (int), service_total (float->d), discount (float->d), r_total (decimal->d)
-                $stmt_bill->bind_param("iiddd", $res_id, $total_cost, $service_total, $discount_amount, $r_total_calculated); 
-                if (!$stmt_bill->execute()) {
-                    throw new Exception("帳單建立失敗：" . $stmt_bill->error);
-                }
-                $b_id = $conn->insert_id; // 獲取自動生成的 b_id
 
-                // --- DEBUGGING START ---
-                error_log("帳單ID (b_id) 已生成: " . $b_id);
-                // --- DEBUGGING END ---
-
-                // **重要：將附加服務細節寫入 SERVICEDETAIL 表**
-                // 根據 fixed_hotel_sql (1).sql，servicedetail 表只有 s_id, res_id, quantity
+                // 如果有選擇的服務，添加到 SERVICEDETAIL
                 if (!empty($selected_services_for_session)) {
                     foreach ($selected_services_for_session as $s_id_val => $quantity_val) {
                         $stmt_sd = $conn->prepare("
                             INSERT INTO SERVICEDETAIL (s_id, res_id, quantity)
                             VALUES (?, ?, ?)
                         ");
-                        if ($stmt_sd === false) { 
-                            throw new Exception("SERVICEDETAIL 預處理失敗 (內層迴圈): " . $conn->error);
-                        }
-                        // 'sii' for s_id (char/string), res_id (int), quantity (int)
                         $stmt_sd->bind_param("sii", $s_id_val, $res_id, $quantity_val);
                         if (!$stmt_sd->execute()) {
                             throw new Exception("服務細節建立失敗：" . $stmt_sd->error);
                         }
-                        $stmt_sd->close(); 
+                        $stmt_sd->close();
                     }
-                    error_log("SERVICEDETAIL 插入完成。");
-                } else {
-                    error_log("selected_services_for_session 為空，未執行 SERVICEDETAIL 插入。");
                 }
 
                 $conn->commit(); // 提交交易

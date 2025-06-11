@@ -363,6 +363,22 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
     unset($_SESSION['service_update_error']);
     endif; 
     ?>
+    <?php if (isset($_SESSION['discount_update_success'])): ?>
+    <script>
+        alert('優惠更新成功！');
+    </script>
+    <?php 
+    unset($_SESSION['discount_update_success']);
+    endif; 
+    ?>
+    <?php if (isset($_SESSION['discount_update_error'])): ?>
+    <script>
+        alert('優惠更新失敗：<?php echo $_SESSION['discount_update_error']; ?>');
+    </script>
+    <?php 
+    unset($_SESSION['discount_update_error']);
+    endif; 
+    ?>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="#">飯店管理系統</a>
@@ -519,15 +535,18 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                         <td>
                                             <?php if (!isset($reservation['b_id'])): ?>
                                                 <span class="badge bg-warning">待確認</span>
+                                            <?php elseif ($reservation['status'] === '未完成'): ?>
+                                                <span class="badge bg-info">已確認</span>
                                             <?php else: ?>
-                                                <span class="badge bg-success">已確認</span>
+                                                <span class="badge bg-success">已完成</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
                                             <div class="btn-group">
                                                 <?php if (!isset($reservation['b_id'])): ?>
                                                     <button class="btn btn-sm btn-success" 
-                                                            onclick="confirmReservation('<?php echo $reservation['res_id']; ?>')">
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#confirmModal<?php echo htmlspecialchars($reservation['res_id']); ?>">
                                                         確認訂單
                                                     </button>
                                                 <?php endif; ?>
@@ -539,6 +558,70 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                             </div>
                                         </td>
                                     </tr>
+
+                                    <!-- 確認訂單 Modal -->
+                                    <div class="modal fade" id="confirmModal<?php echo htmlspecialchars($reservation['res_id']); ?>" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">確認訂單</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <form id="confirmForm<?php echo htmlspecialchars($reservation['res_id']); ?>" method="POST" action="confirm_reservation.php">
+                                                        <input type="hidden" name="res_id" value="<?php echo htmlspecialchars($reservation['res_id']); ?>">
+                                                        
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">訂單編號</label>
+                                                            <p><?php echo htmlspecialchars($reservation['res_id']); ?></p>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">客戶姓名</label>
+                                                            <p><?php echo htmlspecialchars($reservation['c_info_name']); ?></p>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">入住日期</label>
+                                                            <p><?php echo htmlspecialchars($reservation['res_checkindate']); ?></p>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">退房日期</label>
+                                                            <p><?php echo htmlspecialchars($reservation['res_checkoutdate']); ?></p>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">房型</label>
+                                                            <p><?php echo htmlspecialchars($reservation['room_types']); ?></p>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">房間費用</label>
+                                                            <p>NT$ <?php echo number_format($reservation['r_cost'], 0); ?></p>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">服務費用</label>
+                                                            <p>NT$ <?php echo number_format($reservation['service_total'], 0); ?></p>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">優惠折扣</label>
+                                                            <div class="input-group">
+                                                                <input type="number" class="form-control" name="discount" 
+                                                                       value="0" min="0" max="100" step="1">
+                                                                <span class="input-group-text">%</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">總金額（含優惠）</label>
+                                                            <p id="totalAmount<?php echo htmlspecialchars($reservation['res_id']); ?>">
+                                                                NT$ <?php echo number_format($reservation['r_cost'] + $reservation['service_total'], 0); ?>
+                                                            </p>
+                                                        </div>
+                                                        <div class="text-end">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                                            <button type="submit" class="btn btn-primary">確認訂單</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     <!-- 帳單詳情 Modal -->
                                     <div class="modal fade" id="billModal<?php echo htmlspecialchars($reservation['res_id']); ?>" tabindex="-1">
@@ -585,8 +668,23 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
                                                                     <p>NT$ <?php echo number_format($reservation['service_total'], 0); ?></p>
                                                                 </div>
                                                                 <div class="mb-3">
-                                                                    <label class="form-label fw-bold">折扣</label>
-                                                                    <p><?php echo $reservation['discount'] ? number_format($reservation['discount'] * 100, 0) . '%' : '無'; ?></p>
+                                                                    <label class="form-label fw-bold">優惠折扣</label>
+                                                                    <?php if ($reservation['status'] === '未完成'): ?>
+                                                                        <form method="POST" action="update_discount.php">
+                                                                            <input type="hidden" name="bill_id" value="<?php echo htmlspecialchars($reservation['b_id']); ?>">
+                                                                            <div class="input-group">
+                                                                                <input type="number" class="form-control" name="discount" 
+                                                                                       value="<?php echo $reservation['discount'] ? number_format($reservation['discount'] * 100, 0) : '0'; ?>" 
+                                                                                       min="0" max="100" step="1">
+                                                                                <span class="input-group-text">%</span>
+                                                                            </div>
+                                                                            <div class="text-end mt-2">
+                                                                                <button type="submit" class="btn btn-primary">更新優惠</button>
+                                                                            </div>
+                                                                        </form>
+                                                                    <?php else: ?>
+                                                                        <p><?php echo $reservation['discount'] ? number_format($reservation['discount'] * 100, 0) . '%' : '無'; ?></p>
+                                                                    <?php endif; ?>
                                                                 </div>
                                                                 <div class="mb-3">
                                                                     <label class="form-label fw-bold">總金額</label>
@@ -885,35 +983,25 @@ $room_booking_share_result = $room_booking_share_stmt->get_result();
         }
     }
 
-    function confirmReservation(resId) {
-        if (confirm('確定要確認此訂單嗎？確認後將生成帳單。')) {
-            fetch('confirm_reservation.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `res_id=${resId}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('訂單已確認！');
-                    // 保持在檢視訂單的標籤頁
-                    const reservationsTab = document.querySelector('button[data-bs-target="#reservations"]');
-                    if (reservationsTab) {
-                        reservationsTab.click();
-                    }
-                    // 重新載入頁面
-                    location.reload();
-                } else {
-                    alert('錯誤：' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('發生錯誤：' + error);
-            });
-        }
+    // 計算優惠後總金額
+    function calculateTotal(resId, discount) {
+        const form = document.getElementById('confirmForm' + resId);
+        const roomCost = <?php echo $reservation['r_cost']; ?>;
+        const serviceTotal = <?php echo $reservation['service_total']; ?>;
+        const total = roomCost + serviceTotal;
+        const discountedTotal = total * (1 - discount / 100);
+        document.getElementById('totalAmount' + resId).textContent = 'NT$ ' + Math.round(discountedTotal).toLocaleString();
     }
+
+    // 為每個確認訂單表單添加折扣輸入監聽器
+    <?php 
+    $reservations_result->data_seek(0);
+    while ($reservation = $reservations_result->fetch_assoc()): 
+    ?>
+    document.querySelector('#confirmForm<?php echo $reservation['res_id']; ?> input[name="discount"]').addEventListener('input', function() {
+        calculateTotal('<?php echo $reservation['res_id']; ?>', this.value);
+    });
+    <?php endwhile; ?>
 </script>
 </body>
 </html>
