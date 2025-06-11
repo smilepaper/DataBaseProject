@@ -30,13 +30,14 @@ $manager_info = $result->fetch_assoc();
 
 // 獲取訂單資料
 $reservations_stmt = $conn->prepare("
-    SELECT 
-        r.res_id, 
-        c.c_info_name, 
-        r.res_checkindate, 
-        r.res_checkoutdate, 
+    SELECT
+        r.res_id,
+        c.c_info_name,
+        r.res_checkindate,
+        r.res_checkoutdate,
+        r.days, -- 確保這裡有 days 欄位
         GROUP_CONCAT(
-            CASE 
+            CASE
                 WHEN rm.r_type = 1 THEN '標準單人房'
                 WHEN rm.r_type = 2 THEN '標準雙人房'
                 WHEN rm.r_type = 3 THEN '標準三人房'
@@ -45,18 +46,24 @@ $reservations_stmt = $conn->prepare("
                 WHEN rm.r_type = 6 THEN '標準六人房'
             END
         ) as room_types,
+        -- 計算房間費用：如果帳單已存在，使用帳單的 r_cost；否則，根據房間價格和天數計算
+        COALESCE(b.r_cost, SUM(rm.r_price * r.days)) as r_cost,
+        -- 計算服務費用：如果帳單已存在，使用帳單的 service_total；否則，根據服務價格和數量計算
+        COALESCE(b.service_total, (
+            SELECT COALESCE(SUM(s.s_price * sd.quantity), 0)
+            FROM SERVICEDETAIL sd
+            JOIN SERVICE s ON sd.s_id = s.s_id
+            WHERE sd.res_id = r.res_id
+        )) as service_total,
         b.b_id,
-        b.discount,
-        b.service_total,
-        b.r_cost,
-        r.days,
+        COALESCE(b.discount, 0) as discount, -- 如果沒有帳單，discount 應該是 0
         r.status
     FROM RESERVATION r
     JOIN CUSTOMER c ON r.c_id = c.c_id
     JOIN RESERVATION_ROOM rr ON r.res_id = rr.res_id
     JOIN ROOM rm ON rr.r_id = rm.r_id
     LEFT JOIN BILL b ON r.res_id = b.res_id
-    GROUP BY r.res_id, c.c_info_name, r.res_checkindate, r.res_checkoutdate, b.b_id, b.discount, b.service_total, b.r_cost, r.days, r.status
+    GROUP BY r.res_id, c.c_info_name, r.res_checkindate, r.res_checkoutdate, r.days, b.b_id, b.discount, b.service_total, b.r_cost, r.status
     ORDER BY r.res_id DESC
 ");
 $reservations_stmt->execute();
