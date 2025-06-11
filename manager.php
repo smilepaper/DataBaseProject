@@ -40,8 +40,8 @@ $reservations_stmt = $conn->prepare("
                 WHEN rm.r_type = 1 THEN '標準單人房'
                 WHEN rm.r_type = 2 THEN '標準雙人房'
                 WHEN rm.r_type = 3 THEN '標準三人房'
-                WHEN rm.r_type = 4 AND rm.r_price = 4000 THEN '標準四人房'
-                WHEN rm.r_type = 4 AND rm.r_price = 6000 THEN '豪華四人房'
+                WHEN rm.r_type = 4 THEN '標準四人房'
+                WHEN rm.r_type = 5 THEN '豪華四人房'
                 WHEN rm.r_type = 6 THEN '標準六人房'
             END
         ) as room_types,
@@ -206,8 +206,8 @@ $room_occupancy_stmt = $conn->prepare("
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
-            WHEN r.r_type = 4 AND r.r_price = 4000 THEN '標準四人房'
-            WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
+            WHEN r.r_type = 4 THEN '標準四人房'
+            WHEN r.r_type = 5 THEN '豪華四人房'
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
         DATE_FORMAT(res.res_checkindate, '%Y-%m') as month,
@@ -234,8 +234,8 @@ $popular_rooms_stmt = $conn->prepare("
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
-            WHEN r.r_type = 4 AND r.r_price = 4000 THEN '標準四人房'
-            WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
+            WHEN r.r_type = 4 THEN '標準四人房'
+            WHEN r.r_type = 5 THEN '豪華四人房'
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
         COUNT(rr.r_id) as reservation_count,
@@ -304,8 +304,8 @@ $room_booking_share_stmt = $conn->prepare("
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
-            WHEN r.r_type = 4 AND r.r_price = 4000 THEN '標準四人房'
-            WHEN r.r_type = 4 AND r.r_price = 6000 THEN '豪華四人房'
+            WHEN r.r_type = 4 THEN '標準四人房'
+            WHEN r.r_type = 5 THEN '豪華四人房'
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
         COUNT(rr.res_id) as reservation_count_by_type_6_months,
