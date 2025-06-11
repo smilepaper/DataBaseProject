@@ -145,7 +145,8 @@ $services_result = $services_stmt->get_result();
                                                 case 1: echo '標準單人房'; break;
                                                 case 2: echo '標準雙人房'; break;
                                                 case 3: echo '標準三人房'; break;
-                                                case 4: echo ($reservation['r_price'] == 4000) ? '標準四人房' : '豪華四人房'; break;
+                                                case 4: echo '標準四人房'; break; // r_type 4 現在固定為標準四人房
+                                                case 5: echo '豪華四人房'; break; // 新增 r_type 5 為豪華四人房
                                                 case 6: echo '標準六人房'; break;
                                             }
                                             ?>
@@ -210,7 +211,8 @@ $services_result = $services_stmt->get_result();
                                                                         case 1: echo '標準單人房'; break;
                                                                         case 2: echo '標準雙人房'; break;
                                                                         case 3: echo '標準三人房'; break;
-                                                                        case 4: echo ($reservation['r_price'] == 4000) ? '標準四人房' : '豪華四人房'; break;
+                                                                        case 4: echo '標準四人房'; break; // r_type 4 現在固定為標準四人房
+                                                                        case 5: echo '豪華四人房'; break; // 新增 r_type 5 為豪華四人房
                                                                         case 6: echo '標準六人房'; break;
                                                                     }
                                                                     ?>
