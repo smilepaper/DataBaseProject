@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </head>
     <body class="img js-fullheight" style="background-image: url(images/bg.jpg);">
     <section class="ftco-section">
-        <div class="container" style="max-width: 400px;margin-top: 150px;">
+        <div class="container" style="max-width: 400px;margin-top: 250px;">
             <div class="row justify-content-center">
                 <div class="col-md-11 col-lg-9" style="margin-top: 20px;">
                     <div class="login-wrap p-0">
