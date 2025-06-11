@@ -12,7 +12,7 @@ if (isset($_GET['logout'])) {
 if (!isset($_SESSION['login_session']) || $_SESSION['role'] !== 'MANAGER') {
     header('Location: index.php');
     exit();
-} 
+}
 
 // 資料庫連線
 $conn = new mysqli('localhost', 'root', '', 'HOTELRESERVATION');
@@ -28,14 +28,14 @@ $stmt->execute();
 $result = $stmt->get_result();
 $manager_info = $result->fetch_assoc();
 
-// 獲取訂單資料
+// 獲取訂單資料 (此部分已包含打折前/後邏輯，保持不變)
 $reservations_stmt = $conn->prepare("
     SELECT
         r.res_id,
         c.c_info_name,
         r.res_checkindate,
         r.res_checkoutdate,
-        r.days, -- 確保這裡有 days 欄位
+        r.days,
         GROUP_CONCAT(
             CASE
                 WHEN rm.r_type = 1 THEN '標準單人房'
@@ -46,9 +46,7 @@ $reservations_stmt = $conn->prepare("
                 WHEN rm.r_type = 6 THEN '標準六人房'
             END
         ) as room_types,
-        -- 計算房間費用：如果帳單已存在，使用帳單的 r_cost；否則，根據房間價格和天數計算
         COALESCE(b.r_cost, SUM(rm.r_price * r.days)) as r_cost,
-        -- 計算服務費用：如果帳單已存在，使用帳單的 service_total；否則，根據服務價格和數量計算
         COALESCE(b.service_total, (
             SELECT COALESCE(SUM(s.s_price * sd.quantity), 0)
             FROM SERVICEDETAIL sd
@@ -56,7 +54,7 @@ $reservations_stmt = $conn->prepare("
             WHERE sd.res_id = r.res_id
         )) as service_total,
         b.b_id,
-        COALESCE(b.discount, 0) as discount, -- 如果沒有帳單，discount 應該是 0
+        COALESCE(b.discount, 0) as discount,
         r.status
     FROM RESERVATION r
     JOIN CUSTOMER c ON r.c_id = c.c_id
@@ -69,13 +67,13 @@ $reservations_stmt = $conn->prepare("
 $reservations_stmt->execute();
 $reservations_result = $reservations_stmt->get_result();
 
-// 獲取房間資料
+// 獲取房間資料 (此部分與收入計算無關，保持不變)
 $rooms_stmt = $conn->prepare("
-    SELECT 
+    SELECT
         r.r_id,
         r.r_type,
         r.r_price,
-        CASE 
+        CASE
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
@@ -83,11 +81,11 @@ $rooms_stmt = $conn->prepare("
             WHEN r.r_type = 5 THEN '豪華四人房'
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
-        CASE 
+        CASE
             WHEN r.r_id IN (
-                SELECT rr.r_id 
-                FROM RESERVATION_ROOM rr 
-                JOIN RESERVATION res ON rr.res_id = res.res_id 
+                SELECT rr.r_id
+                FROM RESERVATION_ROOM rr
+                JOIN RESERVATION res ON rr.res_id = res.res_id
                 WHERE res.res_checkoutdate >= CURDATE()
             ) THEN '已預訂'
             ELSE '可預訂'
@@ -98,18 +96,14 @@ $rooms_stmt = $conn->prepare("
 $rooms_stmt->execute();
 $rooms_result = $rooms_stmt->get_result();
 
-// 處理房型價格更新
+// 處理房型價格更新 (此部分與收入計算無關，保持不變)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_room_type'])) {
     $room_type = $_POST['room_type'];
     $room_price = $_POST['room_price'];
-    // 獲取前端傳過來的舊價格
-    $current_price = $_POST['current_price']; 
+    $current_price = $_POST['current_price'];
 
-    // 修改 UPDATE 語句，增加 r_price 的條件
-    // 這會確保只有 r_type 為指定值，且 r_price 等於舊價格的房間會被更新
     $update_stmt = $conn->prepare("UPDATE ROOM SET r_price = ? WHERE r_type = ? AND r_price = ?");
-    // 注意綁定參數的類型，現在有三個整數參數
-    $update_stmt->bind_param("iii", $room_price, $room_type, $current_price); 
+    $update_stmt->bind_param("iii", $room_price, $room_type, $current_price);
 
     if ($update_stmt->execute()) {
         $_SESSION['update_success'] = true;
@@ -123,28 +117,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_room_type'])) 
     $update_stmt->close();
 }
 
-// 處理服務更新
+// 處理服務更新 (此部分與收入計算無關，保持不變)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_service'])) {
     $service_id = $_POST['service_id'];
     $service_type = $_POST['service_type'];
     $service_price = $_POST['service_price'];
-    
-    // 先檢查服務是否存在
+
     $check_stmt = $conn->prepare("SELECT s_id FROM SERVICE WHERE s_id = ?");
     $check_stmt->bind_param("s", $service_id);
     $check_stmt->execute();
     $result = $check_stmt->get_result();
-    
+
     if ($result->num_rows === 0) {
         $_SESSION['service_update_error'] = "找不到指定的服務";
         header('Location: ' . $_SERVER['PHP_SELF'] . '#services');
         exit();
     }
-    
-    // 修改 SQL 查詢，只更新特定 ID 的服務
+
     $update_stmt = $conn->prepare("UPDATE SERVICE SET s_type = ?, s_price = ? WHERE s_id = ?");
     $update_stmt->bind_param("sis", $service_type, $service_price, $service_id);
-    
+
     if ($update_stmt->execute()) {
         $_SESSION['service_update_success'] = true;
         header('Location: ' . $_SERVER['PHP_SELF'] . '#services');
@@ -154,29 +146,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_service'])) {
         header('Location: ' . $_SERVER['PHP_SELF'] . '#services');
         exit();
     }
-    
+
     $check_stmt->close();
     $update_stmt->close();
 }
 
-// 獲取所有服務
+// 獲取所有服務 (此部分與收入計算無關，保持不變)
 $services_stmt = $conn->prepare("SELECT * FROM SERVICE ORDER BY s_id");
 $services_stmt->execute();
 $services_result = $services_stmt->get_result();
 
-// 獲取指定月份的收入統計
+// 獲取指定月份的收入統計 (設定月份)
 if (isset($_GET['month'])) {
     $month = $_GET['month'];
 } else {
     $month = date('Y-m');
 }
 
+// --- 月度收入統計 (過去6個月) ---
+// **主要修改點：計算房間收入、服務收入和總收入時，使用打折後的邏輯**
 $revenue_stmt = $conn->prepare("
-    SELECT 
+    SELECT
         DATE_FORMAT(r.res_checkindate, '%Y-%m') as month,
-        COALESCE(SUM(b.r_cost), 0) as room_revenue,
-        COALESCE(SUM(b.service_total), 0) as service_revenue,
-        COALESCE(SUM(b.r_cost + b.service_total), 0) as total_revenue,
+        -- 計算打折後的房間收入：原始房間費用 * (1 - 折扣)
+        COALESCE(SUM(b.r_cost * (1 - b.discount)), 0) as room_revenue,
+        -- 計算打折後的服務收入：原始服務費用 * (1 - 折扣)
+        COALESCE(SUM(b.service_total * (1 - b.discount)), 0) as service_revenue,
+        -- 打折後的總收入：直接使用帳單中的總計 (b.r_total)
+        COALESCE(SUM(b.r_total), 0) as total_revenue,
         COUNT(DISTINCT r.res_id) as reservation_count
     FROM RESERVATION r
     LEFT JOIN BILL b ON r.res_id = b.res_id
@@ -187,14 +184,16 @@ $revenue_stmt = $conn->prepare("
 $revenue_stmt->execute();
 $revenue_result = $revenue_stmt->get_result();
 
-// 獲取預訂次數最多的客戶
+// --- 預訂次數最多的客戶 ---
+// **主要修改點：客戶的總消費使用打折後的總金額**
 $top_customers_stmt = $conn->prepare("
-    SELECT 
+    SELECT
         c.c_id,
         c.c_info_name,
         COUNT(r.res_id) as reservation_count,
-        COALESCE(SUM(b.r_cost + b.service_total), 0) as total_spent,
-        COALESCE(AVG(b.r_cost + b.service_total), 0) as avg_spent
+        -- 客戶總消費：使用帳單中的打折後總金額 (b.r_total)
+        COALESCE(SUM(b.r_total), 0) as total_spent,
+        COALESCE(AVG(b.r_total), 0) as avg_spent
     FROM CUSTOMER c
     JOIN RESERVATION r ON c.c_id = r.c_id
     LEFT JOIN BILL b ON r.res_id = b.res_id
@@ -205,11 +204,11 @@ $top_customers_stmt = $conn->prepare("
 $top_customers_stmt->execute();
 $top_customers_result = $top_customers_stmt->get_result();
 
-// 獲取房間使用率分析
+// 獲取房間使用率分析 (此部分與收入計算無關，保持不變)
 $room_occupancy_stmt = $conn->prepare("
-    SELECT 
+    SELECT
         r.r_type,
-        CASE 
+        CASE
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
@@ -223,7 +222,7 @@ $room_occupancy_stmt = $conn->prepare("
         ROUND((COUNT(DISTINCT CASE WHEN res.res_id IS NOT NULL THEN r.r_id END) / COUNT(DISTINCT r.r_id)) * 100, 2) as occupancy_rate
     FROM ROOM r
     LEFT JOIN RESERVATION_ROOM rr ON r.r_id = rr.r_id
-    LEFT JOIN RESERVATION res ON rr.res_id = res.res_id 
+    LEFT JOIN RESERVATION res ON rr.res_id = res.res_id
         AND res.res_checkindate >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
     GROUP BY r.r_type, type_name, month
     HAVING occupancy_rate > 0
@@ -233,11 +232,12 @@ $room_occupancy_stmt = $conn->prepare("
 $room_occupancy_stmt->execute();
 $room_occupancy_result = $room_occupancy_stmt->get_result();
 
-// 獲取最常被預訂的房型
+// --- 最常被預訂的房型 ---
+// **主要修改點：計算房間收入和服務收入時，使用打折後的邏輯**
 $popular_rooms_stmt = $conn->prepare("
-    SELECT 
+    SELECT
         r.r_type,
-        CASE 
+        CASE
             WHEN r.r_type = 1 THEN '標準單人房'
             WHEN r.r_type = 2 THEN '標準雙人房'
             WHEN r.r_type = 3 THEN '標準三人房'
@@ -246,8 +246,10 @@ $popular_rooms_stmt = $conn->prepare("
             WHEN r.r_type = 6 THEN '標準六人房'
         END as type_name,
         COUNT(rr.r_id) as reservation_count,
-        ROUND(SUM(DISTINCT b.r_cost), 0) as total_room_revenue,
-        ROUND(SUM(DISTINCT b.service_total), 0) as total_service_revenue
+        -- 計算打折後的房間收入：原始房間費用 * (1 - 折扣)
+        ROUND(SUM(b.r_cost * (1 - b.discount)), 0) as total_room_revenue,
+        -- 計算打折後的服務收入：原始服務費用 * (1 - 折扣)
+        ROUND(SUM(b.service_total * (1 - b.discount)), 0) as total_service_revenue
     FROM ROOM r
     JOIN RESERVATION_ROOM rr ON r.r_id = rr.r_id
     JOIN RESERVATION res ON rr.res_id = res.res_id
@@ -259,12 +261,16 @@ $popular_rooms_stmt = $conn->prepare("
 $popular_rooms_stmt->execute();
 $popular_rooms_result = $popular_rooms_stmt->get_result();
 
-// 獲取當前月份的收入統計 (針對卡片顯示)
+// --- 獲取當前月份的收入統計 (針對卡片顯示) ---
+// **主要修改點：計算房間收入、服務收入和總收入時，使用打折後的邏輯**
 $current_month_revenue_stmt = $conn->prepare("
     SELECT
-        COALESCE(SUM(b.r_cost), 0) as room_revenue,
-        COALESCE(SUM(b.service_total), 0) as service_revenue,
-        COALESCE(SUM(b.r_cost + b.service_total), 0) as total_revenue
+        -- 計算打折後的房間收入：原始房間費用 * (1 - 折扣)
+        COALESCE(SUM(b.r_cost * (1 - b.discount)), 0) as room_revenue,
+        -- 計算打折後的服務收入：原始服務費用 * (1 - 折扣)
+        COALESCE(SUM(b.service_total * (1 - b.discount)), 0) as service_revenue,
+        -- 打折後的總收入：直接使用帳單中的總計 (b.r_total)
+        COALESCE(SUM(b.r_total), 0) as total_revenue
     FROM RESERVATION r
     LEFT JOIN BILL b ON r.res_id = b.res_id
     WHERE DATE_FORMAT(r.res_checkindate, '%Y-%m') = ?
@@ -274,7 +280,7 @@ $current_month_revenue_stmt->execute();
 $current_month_revenue_result = $current_month_revenue_stmt->get_result();
 $revenue_data = $current_month_revenue_result->fetch_assoc();
 
-// 如果沒有資料，則將收入資料初始化為 0
+// 如果沒有資料，則將收入資料初始化為 0 (保持不變)
 if (!$revenue_data) {
     $revenue_data = [
         'room_revenue' => 0,
@@ -283,7 +289,7 @@ if (!$revenue_data) {
     ];
 }
 
-// 獲取過去6個月的總預訂次數
+// 獲取過去6個月的總預訂次數 (此部分與收入計算無關，保持不變)
 $total_bookings_6_months_stmt = $conn->prepare("
     SELECT COUNT(res_id) as total_count
     FROM RESERVATION
@@ -294,14 +300,14 @@ $total_bookings_6_months_result = $total_bookings_6_months_stmt->get_result();
 $total_bookings_row = $total_bookings_6_months_result->fetch_assoc();
 $total_reservations_6_months = $total_bookings_row['total_count'];
 
-// 獲取過去6個月房間預訂佔比
+// 獲取過去6個月房間預訂佔比 (此部分與收入計算無關，保持不變)
 $room_booking_share_stmt = $conn->prepare("
     WITH total_bookings AS (
         SELECT COUNT(*) as total_count
         FROM RESERVATION_ROOM
         WHERE res_id IN (
-            SELECT res_id 
-            FROM RESERVATION 
+            SELECT res_id
+            FROM RESERVATION
             WHERE res_checkindate >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
         )
     )
