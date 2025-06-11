@@ -23,9 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['res_id'])) {
     try {
         // 1. 獲取訂單資訊
         $res_stmt = $conn->prepare("
-            SELECT r.*, 
-                   GROUP_CONCAT(rm.r_id) as room_ids,
-                   SUM(rm.r_price * r.days) as total_room_cost
+            SELECT 
+                r.*,
+                GROUP_CONCAT(DISTINCT rm.r_id) as room_ids,
+                SUM(rm.r_price * r.days) as total_room_cost,
+                r.days
             FROM RESERVATION r
             JOIN RESERVATION_ROOM rr ON r.res_id = rr.res_id
             JOIN ROOM rm ON rr.r_id = rm.r_id
@@ -43,7 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['res_id'])) {
         // 2. 計算服務總額
         $service_total = 0;
         $service_stmt = $conn->prepare("
-            SELECT SUM(s.s_price * sd.quantity) as total
+            SELECT 
+                s.s_id,
+                s.s_price,
+                sd.quantity
             FROM SERVICEDETAIL sd
             JOIN SERVICE s ON sd.s_id = s.s_id
             WHERE sd.res_id = ?
@@ -51,8 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['res_id'])) {
         $service_stmt->bind_param("i", $res_id);
         $service_stmt->execute();
         $service_result = $service_stmt->get_result();
-        if ($service_row = $service_result->fetch_assoc()) {
-            $service_total = $service_row['total'] ?? 0;
+        
+        while ($service = $service_result->fetch_assoc()) {
+            $service_total += ($service['s_price'] * $service['quantity']);
         }
         
         // 3. 創建帳單
@@ -71,7 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['res_id'])) {
             $discount,
             $discounted_amount
         );
-        $bill_stmt->execute();
+        
+        if (!$bill_stmt->execute()) {
+            throw new Exception("帳單建立失敗：" . $bill_stmt->error);
+        }
         
         // 4. 更新訂單狀態
         $update_stmt = $conn->prepare("
@@ -80,7 +89,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['res_id'])) {
             WHERE res_id = ?
         ");
         $update_stmt->bind_param("i", $res_id);
-        $update_stmt->execute();
+        
+        if (!$update_stmt->execute()) {
+            throw new Exception("訂單狀態更新失敗：" . $update_stmt->error);
+        }
         
         // 提交交易
         $conn->commit();
