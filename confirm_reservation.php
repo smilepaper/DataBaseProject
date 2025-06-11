@@ -77,9 +77,17 @@ try {
 
     // 將服務詳細資訊寫入 SERVICEDETAIL 表格
     if (isset($_SESSION['pending_bill']['selected_services']) && !empty($_SESSION['pending_bill']['selected_services'])) {
-        foreach ($_SESSION['pending_bill']['selected_services'] as $s_id => $s_price) {
-            $stmt = $conn->prepare("INSERT INTO SERVICEDETAIL (res_id, s_id) VALUES (?, ?)");
-            $stmt->bind_param("ii", $res_id, $s_id);
+        foreach ($_SESSION['pending_bill']['selected_services'] as $s_id_from_session => $s_price) {
+            // 假設 quantity 預設為 1，如果需要用戶輸入，則從前端獲取
+            $quantity = 1; 
+
+            // 重要的修改：
+            // 1. 包含 quantity 和 b_id 欄位
+            // 2. 修改 bind_param 的類型： 's' for s_id (char), 'i' for res_id (int), 'i' for quantity (int), 'i' for b_id (int)
+            // 3. 使用正確的 $s_id_from_session 和 $bill_id
+            $stmt = $conn->prepare("INSERT INTO SERVICEDETAIL (s_id, res_id, quantity, b_id) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("siii", $s_id_from_session, $res_id, $quantity, $bill_id); 
+            
             if (!$stmt->execute()) {
                 throw new Exception("寫入服務詳細資訊失敗：" . $stmt->error);
             }
